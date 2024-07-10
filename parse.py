@@ -44,7 +44,7 @@ def parser_add_main_args(parser):
 
     # training
     parser.add_argument('--weight_decay', type=float, default=1e-2)
-    parser.add_argument('--dropout', type=float, default=0.0)
+    parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--use_bn', action='store_true', help='use batch norm')
 
@@ -62,6 +62,7 @@ def parser_add_main_args(parser):
     #Our method hyper
     parser.add_argument('--nc_dim', type=int, default=100, help='')
     parser.add_argument('--reduction', type=str, default='pca', choices=['pca', 'ec'])
+    parser.add_argument('--scale', action='store_true', help='')
 
 
 

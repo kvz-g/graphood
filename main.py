@@ -130,7 +130,7 @@ for run in range(args.runs):
                       f'Valid: {100 * result[1]:.2f}%, '
                       f'Test: {100 * result[2]:.2f}%')
         else:
-            result, result_score_id, result_score_ood = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=True)
+            result = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=False)
             logger.add_result(run, result)
 
             if epoch % args.display_step == 0:
@@ -148,4 +148,3 @@ results = logger.print_statistics()
 ### Save results ###
 if args.mode == 'detect':
     save_result(results, args)
-    print(f'ID_score:{result_score_id}\nOOD_score:{result_score_ood}')

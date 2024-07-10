@@ -341,6 +341,7 @@ def evaluate_detect(model, dataset_ind, dataset_ood, criterion, eval_func, args,
     else:
         with torch.no_grad():
             test_ind_score = model.detect(dataset_ind, dataset_ind.splits['test'], device, args).cpu()
+
     if isinstance(dataset_ood, list):
         result = []
         for d in dataset_ood:
@@ -364,45 +365,6 @@ def evaluate_detect(model, dataset_ind, dataset_ood, criterion, eval_func, args,
         auroc, aupr, fpr, _ = get_measures(test_ind_score, test_ood_score)
         result = [auroc] + [aupr] + [fpr]
 
-    """ if auroc > 0.995:
-        # 创建一个从0到1，每隔0.05的bins
-        bins = np.arange(0.5, 0.8, 0.001)
-
-        # 使用matplotlib的hist函数来生成两个条形图
-        plt.hist(test_ind_score, bins=bins, color=(0/255.,60/255.,255/255.), alpha=0.5, label='Vanilla')
-        plt.hist(test_ood_score, bins=bins, color=(255/255.,20/255.,20/255.), alpha=0.5, label='Ours')
-        #plt.hist(output1, bins=bins, color='blue', alpha=0.4, label='vanila')
-        #plt.hist(output2, bins=bins, color='red', alpha=0.5, label='ours')
-
-        # 在x=0处画一条红线
-        # plt.axvline(x=0, color='black', linewidth=2.5)
-
-        # 在x=0处画一条红线
-        # plt.axvline(x=np.mean(test_ind_score), color=(70/255.,70/255.,255/255.), linewidth=1.5)
-        # 在x=0处画一条红线
-        # plt.axvline(x=np.mean(test_ood_score), color=(255/255.,50/255.,50/255.), linewidth=1.5)
-
-        plt.ylim(0,1000)
-
-        # 设置图表的标题和坐标轴标签
-        #plt.title('Distribution of Output')
-        plt.xlabel(r'$\Delta p$', fontsize=32)
-        plt.ylabel('Density', fontsize=32)
-
-        # 放大x轴上的数字
-        plt.tick_params(axis='x', labelsize=26)
-
-        # 放大y轴上的数字
-        plt.tick_params(axis='y', labelsize=26)
-
-        # 添加图例
-        plt.legend(loc='upper right', fontsize=32)
-
-        # 这里设置y轴的间隔
-        plt.yticks(np.arange(0, 10000, 50))
-
-        显示图表
-        plt.show() """
     
     out = model(dataset_ind, device).cpu()
     test_idx = dataset_ind.splits['test']

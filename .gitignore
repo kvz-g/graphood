@@ -1,3 +1,7 @@
 /data
 /results
+*.log
+*.txt
+bash/
+*.sh
 __pycache__

@@ -156,7 +156,10 @@ def save_result(results, args):
 
     print(f"Saving results to {filename}")
     with open(f"{filename}", 'a+') as write_obj:
-        write_obj.write(f"{name} {args.backbone} {args.num_layers} layers\n")
+        if args.method == 'ours':
+            write_obj.write(f"{name} {args.backbone} {args.num_layers} layers dim {args.nc_dim} use scale:{args.scale}\n")
+        else:
+            write_obj.write(f"{name} {args.backbone} {args.num_layers} layers\n")
         if args.print_args:
             write_obj.write(f'{args}\n')
         if results.shape[0] == 1: # one run

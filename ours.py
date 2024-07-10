@@ -90,7 +90,8 @@ class Ours(nn.Module):
         norm_all = torch.linalg.vector_norm(feature_test, dim = 1)
         norm_p = torch.linalg.vector_norm(test_projection, dim = 1)
         score = norm_p/norm_all
-        score *= max_logit
+        if args.scale:
+            score *= max_logit
         
         if args.use_prop:
             edge_index = dataset_test.edge_index.to(device)
@@ -101,14 +102,15 @@ class Ours(nn.Module):
         score = score.unsqueeze(1)
         node_num = score.shape[0]
         row, col = edge_index
-        edge_weight = F.cosine_similarity(feature_test[row], feature_test[col], dim=1)
+        edge_weight = -F.cosine_similarity(feature_test[row], feature_test[col], dim=1)
         deg = torch.zeros(node_num, dtype=torch.float).to('cuda')
         deg.scatter_add_(0, row, edge_weight)
+        deg[torch.nonzero(deg == 0)] = 1
         norm_edge_weight = edge_weight / deg[row]
         adj = SparseTensor(row=row, col=col, value=norm_edge_weight, sparse_sizes=(node_num, node_num))
         for _ in range(prop_layers):
             score = score * alpha + matmul(adj, score) * (1 - alpha)
-
+        score = torch.nan_to_num(score, nan=0.)
         return score.squeeze(1)
 
     def loss_compute(self, dataset_ind, dataset_ood, criterion, device, args):
