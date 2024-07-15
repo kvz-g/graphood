@@ -1,46 +1,57 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import torch
+import matplotlib.pyplot as plt
+import seaborn as sns
+import scienceplots
 
-# 假设 output 是你之前生成的二维数组
-#output1 = np.loadtxt('datapoint2/rep_only_mulde_s2_m.txt')
-output1 = np.loadtxt('datapoint/true_output_vani_m.txt')
-output2 = np.loadtxt('datapoint/true_output_our_m.txt')
+plt.style.use(['science'])
 
-# 创建一个从0到1，每隔0.05的bins
-bins = np.arange(-1, 1.01, 0.01)
+# load data
+in_distribution = np.random.normal(loc=-0.7, scale=0.05, size=100)
+out_of_distribution = np.random.normal(loc=-0.65, scale=0.05, size=100)
 
-# 使用matplotlib的hist函数来生成两个条形图
-plt.hist(output1, bins=bins, color=(0/255.,60/255.,255/255.), alpha=0.5, label='Vanilla')
-plt.hist(output2, bins=bins, color=(255/255.,20/255.,20/255.), alpha=0.5, label='Ours')
-#plt.hist(output1, bins=bins, color='blue', alpha=0.4, label='vanila')
-#plt.hist(output2, bins=bins, color='red', alpha=0.5, label='ours')
+# mean of the ood score
+mean_in = np.mean(in_distribution)
+mean_out = np.mean(out_of_distribution)
 
-# 在x=0处画一条红线
-plt.axvline(x=0, color='black', linewidth=2.5)
+# 创建一个3x1的子图布局
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-# 在x=0处画一条红线
-plt.axvline(x=np.mean(output1), color=(70/255.,70/255.,255/255.), linewidth=1.5)
-# 在x=0处画一条红线
-plt.axvline(x=np.mean(output2), color=(255/255.,50/255.,50/255.), linewidth=1.5)
+# first subgraph
+sns.kdeplot(in_distribution, fill=True, color="green", ax=axes[0], label='in-distribution')
+sns.kdeplot(out_of_distribution, fill=True, color="red", ax=axes[0], label='out-of-distribution')
+axes[0].axvline(mean_in, color='green', linestyle='--')
+axes[0].axvline(mean_out, color='red', linestyle='--')
+axes[0].set_title('GNNSafe w/o energy propagation')
+axes[0].set_xlabel('Energy score')
+axes[0].set_ylabel('Frequency')
+axes[0].legend()
 
-plt.ylim(0,440)
+# secend subgrah
+sns.kdeplot(in_distribution, fill=True, color="green", ax=axes[1], label='in-distribution')
+sns.kdeplot(out_of_distribution, fill=True, color="red", ax=axes[1], label='out-of-distribution')
+axes[1].axvline(mean_in, color='green', linestyle='--')
+axes[1].axvline(mean_out, color='red', linestyle='--')
+axes[1].set_title('GNNSafe')
+axes[1].set_xlabel('Energy score')
+axes[1].set_ylabel('Frequency')
+axes[1].legend()
 
-# 设置图表的标题和坐标轴标签
-#plt.title('Distribution of Output')
-plt.xlabel(r'$\Delta p$', fontsize=32)
-plt.ylabel('Density', fontsize=32)
+file_path = 'results/vis_scores/coranc.csv'
+nc = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc = np.append(nc, np.array(float(line[:-2])))
 
-# 放大x轴上的数字
-plt.tick_params(axis='x', labelsize=26)
+# mean
 
-# 放大y轴上的数字
-plt.tick_params(axis='y', labelsize=26)
+# Third subgraph
+sns.lineplot(nc, color='green', ax=axes[2], label='nc_oth')
+axes[2].set_title('GNNSafe++')
+axes[2].set_xlabel('Energy score')
+axes[2].set_ylabel('Frequency')
+axes[2].legend()
 
-# 添加图例
-plt.legend(loc='upper right', fontsize=32)
-
-# 这里设置y轴的间隔
-plt.yticks(np.arange(0, 441, 50))
-
-# 显示图表
+plt.tight_layout()
 plt.show()

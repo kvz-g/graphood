@@ -1,17 +1,22 @@
 import argparse
 import random
+import time
 import numpy as np
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import seaborn as sns
+import scienceplots
 
 from logger import Logger_classify, Logger_detect
 from data_utils import normalize, gen_normalized_adjs, evaluate_classify, evaluate_detect, eval_acc, eval_rocauc, eval_f1, to_sparse_tensor, \
-    load_fixed_splits, rand_splits, get_gpu_memory_map, count_parameters
+    load_fixed_splits, rand_splits, get_gpu_memory_map, count_parameters, nc_for_ood
 from dataset import load_dataset
 from parse import parser_add_main_args
 from baselines import *
 from gnnsafe import *
-import time
+
+from ours import Ours
 
 # NOTE: for consistent data splits, see data_utils.rand_train_test_idx
 def fix_seed(seed):
@@ -34,7 +39,8 @@ fix_seed(args.seed)
 if args.cpu:
     device = torch.device("cpu")
 else:
-    device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device("cpu")
+    #device = torch.device("cuda:" + str(args.device)) if torch.cuda.is_available() else torch.device("cpu")
 
 ### Load and preprocess data ###
 dataset_ind, dataset_ood_tr, dataset_ood_te = load_dataset(args)
@@ -66,10 +72,16 @@ print(f"Discussion of {args.dis_type} on dataset {args.dataset} with ood type {a
 ### Load method ###
 if args.method == 'msp':
     model = MSP(d, c, args).to(device)
-elif args.method == 'energybase':
-    model = EnergyBase(d, c, args).to(device)
-elif args.method == 'energyprop':
-    model = EnergyProp(d, c, args).to(device)
+elif args.method in 'gnnsafe':
+    model = GNNSafe(d, c, args).to(device)
+elif args.method == 'ours':
+    model = Ours(d, c, args).to(device)
+elif args.method == 'OE':
+    model = OE(d, c, args).to(device)
+elif args.method == "ODIN":
+    model = ODIN(d, c, args).to(device)
+elif args.method == "Mahalanobis":
+    model = Mahalanobis(d, c, args).to(device)
 
 if args.dataset in ('proteins', 'ppi'):
     criterion = nn.BCEWithLogitsLoss()
@@ -94,6 +106,7 @@ print('MODEL:', model)
 
 val_loss_min = 100.
 train_time = 0
+nc_per_epoch = torch.empty((0, 1), dtype=float).to(device)
 
 ### Training loop ###
 for run in range(args.runs):
@@ -124,6 +137,8 @@ for run in range(args.runs):
         else:
             result, test_in_score, test_ood_score = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=True)
             logger.add_result(run, result)
+            
+            nc_per_epoch = torch.cat((nc_per_epoch, nc_for_ood(model, dataset_ind, dataset_ood_te, epoch, device, args).unsqueeze(1)), dim=0)
 
             if result[-1] < val_loss_min:
                 val_loss_min = result[-1]
@@ -162,6 +177,12 @@ if args.dis_type == 'vis_energy':
             write_obj.write(f"{in_score[i]}\n")
         for i in range(ood_score.shape[0]):
             write_obj.write(f"{ood_score[i]}\n")
+            
+    print('saving result to nc_cora')
+    with open('results/vis_scores/' + f'{args.dataset}' + 'nc'+ '.csv', 'a+') as write_obj:
+        for i in range(nc_per_epoch.shape[0]):
+            write_obj.write(f"{nc_per_epoch[i][0]}\n")
+
 else:
     filename = f'results/discuss/{args.dis_type}.csv'
     print(f"Saving results to {filename}")

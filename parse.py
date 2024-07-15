@@ -30,7 +30,7 @@ def parser_add_main_args(parser):
                         help='power of adjacency matrix for sgc')
 
     # gnnsafe hyper
-    parser.add_argument('--T', type=float, default=1.0, help='temperature for Softmax')
+    parser.add_argument('--T', type=float, default=1.0, help='temperature for Energy')
     parser.add_argument('--use_reg', action='store_true', help='whether to use energy regularization loss')
     parser.add_argument('--lamda', type=float, default=1.0, help='weight for regularization')
     parser.add_argument('--m_in', type=float, default=-5, help='upper bound for in-distribution energy')
