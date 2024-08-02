@@ -33,6 +33,8 @@ class Ours(nn.Module):
             self.encoder = GAT(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout, use_bn=args.use_bn)
         elif args.backbone == 'mixhop':
             self.encoder = MixHop(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
+        elif args.backbone == 'h2gcn':
+            self.encoder = H2GCN(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
         elif args.backbone == 'gcnjk':
             self.encoder = GCNJK(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
         elif args.backbone == 'gatjk':
@@ -53,50 +55,24 @@ class Ours(nn.Module):
 
     def detect(self, dataset_train, tarin_idx, dataset_test, test_idx, device, args):
         '''return ood score compute by feature'''
-        '''
-        logits_train = self.forward(dataset_train, device)[tarin_idx].cpu()
-        logits_test = self.forward(dataset_test, device)[test_idx].cpu()
-        feature_train = self.forward(dataset_train, device, False)[tarin_idx].cpu()
-        feature_test = self.forward(dataset_test, device, False)[test_idx].cpu()
-        
-        logits_train, logits_test = logits_train.detach().numpy(), logits_test.detach().numpy() 
-        feature_train, feature_test = feature_train.detach().numpy(), feature_test.detach().numpy()
-
-        ss = StandardScaler()
-        complete_vectors_train = ss.fit_transform(feature_train)
-        complete_vectors_test = ss.transform(feature_test)
-        pca_estimator = PCA(min(feature_train.shape[1], feature_train.shape[0]))
-        _ = pca_estimator.fit_transform(complete_vectors_train)
-        cls_test_reduced_all = pca_estimator.transform(complete_vectors_test)
-
-        maxlogit_test = logits_test.max(axis=-1)
-        cls_test_reduced = cls_test_reduced_all[:, :args.nc_dim]# nc dim xxxx
-        score = []
-        for i in range(cls_test_reduced.shape[0]):
-            sc_complet = LA.norm((complete_vectors_test[i:]))
-            sc = LA.norm(cls_test_reduced[i:])
-            sc_finale = sc/sc_complet
-            score.append(sc_finale)
-        '''
-        '''score *= maxlogit_test'''
-
         logits_test = self.forward(dataset_test, device)
         feature_train = self.forward(dataset_train, device, False)[tarin_idx]
         feature_test = self.forward(dataset_test, device, False)
         max_logit = logits_test.max(dim=1)[0]
 
         _, _, v = torch.pca_lowrank(feature_train, q=min(feature_train.shape[0], feature_train.shape[1]))
-        std_feature = (feature_test - torch.mean(feature_test, dim=0)) / torch.std(feature_test, dim=0, correction=0)
+        std_feature = (feature_test - torch.mean(feature_train, dim=0)) / torch.std(feature_train, dim=0, correction=0)
         test_projection = torch.matmul(feature_test, v[:, :args.nc_dim])
         norm_all = torch.linalg.vector_norm(feature_test, dim = 1)
         norm_p = torch.linalg.vector_norm(test_projection, dim = 1)
-        score = norm_p/norm_all
+        score = norm_p / norm_all
         if args.scale:
             score *= max_logit
         
         if args.use_prop:
             edge_index = dataset_test.edge_index.to(device)
             score = self.propagation(score, edge_index, feature_test, prop_layers=args.K, alpha=args.alpha)
+
         return score[test_idx].cpu()
     
     def propagation(self, score, edge_index, feature_test, prop_layers=1, alpha=0.5):

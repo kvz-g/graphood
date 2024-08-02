@@ -179,7 +179,7 @@ if args.dis_type == 'vis_energy':
             write_obj.write(f"{ood_score[i]}\n")
             
     print('saving result to nc_cora')
-    with open('results/vis_scores/' + f'{args.dataset}' + 'nc'+ '.csv', 'a+') as write_obj:
+    with open('results/vis_scores/' + f'{args.dataset}' + f'_nc_{args.backbone}'+ '.csv', 'a+') as write_obj:
         for i in range(nc_per_epoch.shape[0]):
             write_obj.write(f"{nc_per_epoch[i][0]}\n")
 

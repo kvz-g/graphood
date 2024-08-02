@@ -5,54 +5,106 @@ import scienceplots
 
 plt.style.use(['science'])
 sns.set_theme(style="white",context="paper")
-# 生成示例数据
-np.random.seed(42)
-in_distribution = np.random.normal(loc=-0.7, scale=0.05, size=100)
-out_of_distribution = np.random.normal(loc=-0.65, scale=0.05, size=100)
 
-# 计算均值
-mean_in = np.mean(in_distribution)
-mean_out = np.mean(out_of_distribution)
+# load the Orthogonality Coefficient on mlp backbone
+file_path = 'results/vis_scores/cora_nc_mlp.csv'
+nc_cora_mlp = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_cora_mlp = np.append(nc_cora_mlp, np.array(float(line[:-2])))
 
-# 创建一个3x1的子图布局
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+file_path = 'results/vis_scores/amazon-computer_nc_mlp.csv'
+nc_amazonc_mlp = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_amazonc_mlp = np.append(nc_amazonc_mlp, np.array(float(line[:-2])))
 
-# 绘制第一个子图
-sns.kdeplot(in_distribution, shade=True, ax=axes[0], label='in-distribution')
-sns.kdeplot(out_of_distribution, shade=True,ax=axes[0], label='out-of-distribution')
-axes[0].axvline(mean_in, linestyle='--')
-axes[0].axvline(mean_out,linestyle='--')
-axes[0].set_title('GNNSafe w/o energy propagation')
-axes[0].set_xlabel('Energy score')
-axes[0].set_ylabel('Frequency')
-axes[0].legend()
+file_path = 'results/vis_scores/amazon-photo_nc_mlp.csv'
+nc_amazonp_mlp = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_amazonp_mlp = np.append(nc_amazonp_mlp, np.array(float(line[:-2])))
 
-# 绘制第二个子图
-sns.kdeplot(in_distribution, shade=True, ax=axes[1], label='in-distribution')
-sns.kdeplot(out_of_distribution,shade=True,ax=axes[1], label='out-of-distribution')
-axes[1].axvline(mean_in,  linestyle='--')
-axes[1].axvline(mean_out,linestyle='--')
-axes[1].set_title('GNNSafe')
-axes[1].set_xlabel('Energy score')
-axes[1].set_ylabel('Frequency')
-axes[1].legend()
+file_path = 'results/vis_scores/coauthor-cs_nc_mlp.csv'
+nc_coauthorc_mlp = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_coauthorc_mlp = np.append(nc_coauthorc_mlp, np.array(float(line[:-2])))
 
-in_distribution2 = np.random.normal(loc=-6, scale=0.5, size=100)
-out_of_distribution2 = np.random.normal(loc=-2, scale=0.5, size=100)
+file_path = 'results/vis_scores/coauthor-physics_nc_mlp.csv'
+nc_coauthorp_mlp = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_coauthorp_mlp = np.append(nc_coauthorp_mlp, np.array(float(line[:-2])))
 
-# 计算均值
-mean_in2 = np.mean(in_distribution2)
-mean_out2 = np.mean(out_of_distribution2)
+# creat 1 x 2 canvas
+fig, axes = plt.subplots(1, 2, figsize=(12.8, 6.4))
 
-# 绘制第三个子图
-sns.kdeplot(in_distribution2, shade=True, ax=axes[2], label='in-distribution')
-sns.kdeplot(out_of_distribution2,shade=True,ax=axes[2], label='out-of-distribution')
-axes[2].axvline(mean_in2,  linestyle='--')
-axes[2].axvline(mean_out2,linestyle='--')
-axes[2].set_title('GNNSafe++')
-axes[2].set_xlabel('Energy score')
-axes[2].set_ylabel('Frequency')
-axes[2].legend()
+# plot (1, 1) subgraph
+sns.lineplot(nc_cora_mlp / 7, ax=axes[0], label='ID(Cora)/OOD(Feature)')
+sns.lineplot(nc_amazonc_mlp / 10, ax=axes[0], label='ID(Amazon-Computers)/OOD(Feature)')
+sns.lineplot(nc_amazonp_mlp / 8, ax=axes[0], label='ID(Amazon-Photo)/OOD(Feature)')
+sns.lineplot(nc_coauthorc_mlp / 15, ax=axes[0], label='ID(Coauthor-CS)/OOD(Feature)')
+sns.lineplot(nc_coauthorp_mlp / 5, ax=axes[0], label='ID(Coauthor-Physics)/OOD(Feature)')
+axes[0].tick_params(axis='both', which='major', labelsize=12)
+axes[0].set_title('Backbone: MLP', fontsize=23)
+axes[0].set_xlabel('Epoch', fontsize=23)
+axes[0].set_ylabel('Orthogonality Coefficient', fontsize=23)
+axes[0].legend(fontsize=14)
+axes[0].grid(True, linestyle='--')
 
+#load the Orthogonality Coefficient on GCN backbone
+file_path = 'results/vis_scores/coranc.csv'
+nc_cora_gcn = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_cora_gcn = np.append(nc_cora_gcn, np.array(float(line[:-2])))
+
+file_path = 'results/vis_scores/amazon-computer_nc_gcn.csv'
+nc_amazonc_gcn = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_amazonc_gcn = np.append(nc_amazonc_gcn, np.array(float(line[:-2])))
+
+file_path = 'results/vis_scores/amazon-photo_nc_gcn.csv'
+nc_amazonp_gcn = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_amazonp_gcn = np.append(nc_amazonp_gcn, np.array(float(line[:-2])))
+
+file_path = 'results/vis_scores/coauthor-cs_nc_gcn.csv'
+nc_coauthorc_gcn = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_coauthorc_gcn = np.append(nc_coauthorc_gcn, np.array(float(line[:-2])))
+
+file_path = 'results/vis_scores/coauthor-physics_nc_gcn.csv'
+nc_coauthorp_gcn = np.array([])
+with open(file_path, 'r') as file:
+    data = file.readlines()
+    for line in data:
+        nc_coauthorp_gcn = np.append(nc_coauthorp_gcn, np.array(float(line[:-2])))
+
+# plot (1, 2) subgraph
+sns.lineplot(nc_cora_gcn / 7, ax=axes[1], label='ID(Cora)/OOD(Feature)')
+sns.lineplot(nc_amazonc_gcn / 10, ax=axes[1], label='ID(Amazon-Computers)/OOD(Feature)')
+sns.lineplot(nc_amazonp_gcn / 8, ax=axes[1], label='ID(Amazon-Photo)/OOD(Feature)')
+sns.lineplot(nc_coauthorc_gcn / 15, ax=axes[1], label='ID(Coauthor-CS)/OOD(Feature)')
+sns.lineplot(nc_coauthorp_gcn / 5, ax=axes[1], label='ID(Coauthor-Physics)/OOD(Feature)')
+axes[1].tick_params(axis='both', which='major', labelsize=12)
+axes[1].set_title('Backbone: GCN', fontsize=23)
+axes[1].set_xlabel('Epoch', fontsize=23)
+axes[1].set_ylabel('Orthogonality Coefficient', fontsize=23)
+axes[1].legend(fontsize=14)
+plt.grid(True, linestyle='--')
 plt.tight_layout()
 plt.show()

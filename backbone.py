@@ -300,6 +300,31 @@ class MixHop(nn.Module):
         x = self.final_project(x)
 
         return x
+    
+    def intermediate_forward(self, x, edge_index, layer_index=None):
+        n = x.size(0)
+        edge_weight = None
+        if isinstance(edge_index, torch.Tensor):
+            edge_index, edge_weight = gcn_norm( 
+                edge_index, edge_weight, n, False,
+                 dtype=x.dtype)
+            row, col = edge_index
+            adj_t = SparseTensor(row=col, col=row, value=edge_weight, sparse_sizes=(n, n))
+        elif isinstance(edge_index, SparseTensor):
+            edge_index = gcn_norm(
+                edge_index, edge_weight, n, False,
+                dtype=x.dtype)
+            edge_weight=None
+            adj_t = edge_index
+        
+        for i, conv in enumerate(self.convs[:-1]):
+            x = conv(x, adj_t)
+            x = self.bns[i](x)
+            x = self.activation(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t)
+
+        return x
 
 class GCNJK(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2,
@@ -419,7 +444,7 @@ class H2GCNConv(nn.Module):
 
 class H2GCN(nn.Module):
     """ our implementation """
-    def __init__(self, in_channels, hidden_channels, out_channels, edge_index, num_nodes,
+    def __init__(self, in_channels, hidden_channels, out_channels,
                     num_layers=2, dropout=0.5, save_mem=False, num_mlp_layers=1,
                     use_bn=True, conv_dropout=True):
         super(H2GCN, self).__init__()
@@ -448,8 +473,6 @@ class H2GCN(nn.Module):
         last_dim = hidden_channels*(2**(num_layers+1)-1)
         self.final_project = nn.Linear(last_dim, out_channels)
 
-        self.num_nodes = num_nodes
-        self.init_adj(edge_index)
 
     def reset_parameters(self):
         self.feature_embed.reset_parameters()
@@ -457,11 +480,10 @@ class H2GCN(nn.Module):
         for bn in self.bns:
             bn.reset_parameters()
 
-    def init_adj(self, edge_index):
+    def init_adj(self, edge_index, n):
         """ cache normalized adjacency and normalized strict two-hop adjacency,
         neither has self loops
         """
-        n = self.num_nodes
         
         if isinstance(edge_index, SparseTensor):
             dev = edge_index.device
@@ -496,6 +518,7 @@ class H2GCN(nn.Module):
 
     def forward(self, x, edge_index):
 
+        self.init_adj(edge_index, x.shape[0])
         adj_t = self.adj_t
         adj_t2 = self.adj_t2
         
@@ -520,6 +543,33 @@ class H2GCN(nn.Module):
         if not self.conv_dropout:
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.final_project(x)
+        return x
+    
+    def intermediate_forward(self, x, edge_index): 
+        self.init_adj(edge_index, x.shape[0])
+        adj_t = self.adj_t
+        adj_t2 = self.adj_t2
+        
+        x = self.feature_embed(x)
+        x = self.activation(x)
+        xs = [x]
+        if self.conv_dropout:
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        for i, conv in enumerate(self.convs[:-1]):
+            x = conv(x, adj_t, adj_t2) 
+            if self.use_bn:
+                x = self.bns[i](x)
+            xs.append(x)
+            if self.conv_dropout:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, adj_t, adj_t2)
+        if self.conv_dropout:
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        xs.append(x)
+
+        x = self.jump(xs)
+        if not self.conv_dropout:
+            x = F.dropout(x, p=self.dropout, training=self.training)
         return x
 
 

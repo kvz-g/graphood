@@ -9,7 +9,7 @@ import torch_geometric.transforms as T
 
 from data_utils import even_quantile_labels, to_sparse_tensor
 
-from torch_geometric.datasets import Planetoid, Amazon, Coauthor, Twitch, PPI, Reddit
+from torch_geometric.datasets import HeterophilousGraphDataset, Planetoid, Amazon, Coauthor, Twitch, PPI, Reddit
 from torch_geometric.transforms import NormalizeFeatures
 from torch_geometric.data import Data
 from torch_geometric.utils import stochastic_blockmodel_graph, subgraph, homophily
@@ -34,6 +34,8 @@ def load_dataset(args):
     # single graph, use original as ind, modified graphs as ood
     elif args.dataset in ('cora', 'citeseer', 'pubmed', 'amazon-photo', 'amazon-computer', 'coauthor-cs', 'coauthor-physics'):
         dataset_ind, dataset_ood_tr, dataset_ood_te = load_graph_dataset(args.data_dir, args.dataset, args.ood_type)
+    elif args.dataset in ('roman-empire', 'amazon-ratings', 'minesweeper', 'tolokers', 'questions'):
+        dataset_ind, dataset_ood_tr, dataset_ood_te = load_heter_dataset(args.data_dir, args.dataset, args.ood_type)
 
     else:
         raise ValueError('Invalid dataname')
@@ -157,7 +159,41 @@ def load_proteins_dataset(data_dir, inductive=True):
 
     return dataset_ind, dataset_ood_tr, dataset_ood_te
 
+def load_heter_dataset(data_dir, dataname, ood_type):
+    transfrom = T.NormalizeFeatures()
+    torch_dataset = HeterophilousGraphDataset(root=f'{data_dir}/heterophilous',
+                                              name=dataname, transform=transfrom)
+    dataset = torch_dataset[0]
+    dataset.node_idx = torch.arange(dataset.num_nodes)
+    dataset_ind = dataset
 
+    if ood_type == 'structure':
+        dataset_ood_tr = create_sbm_dataset(dataset, p_ii=1.5, p_ij=0.5)
+        dataset_ood_te = create_sbm_dataset(dataset, p_ii=1.5, p_ij=0.5)
+    elif ood_type == 'feature':
+        dataset_ood_tr = create_feat_noise_dataset(dataset)
+        dataset_ood_te = create_feat_noise_dataset(dataset)
+    elif ood_type == 'label':
+        if dataname == 'roman-empire':
+            class_t = 5
+        elif dataname == 'amazon-ratings':
+            class_t = 1
+        else:
+            raise NotImplementedError
+        
+        label = dataset.y
+        center_node_mask_ind = (label > class_t)
+        idx = torch.arange(label.size(0))
+        dataset_ind.node_idx = idx[center_node_mask_ind]
+        
+        dataset_ood_tr = Data(x=dataset.x, edge_index=dataset.edge_index, y=dataset.y)
+        dataset_ood_te = Data(x=dataset.x, edge_index=dataset.edge_index, y=dataset.y)
+        center_node_mask_ood_tr = (label == class_t)
+        center_node_mask_ood_te = (label < class_t)
+        dataset_ood_tr.node_idx = idx[center_node_mask_ood_tr]
+        dataset_ood_te.node_idx = idx[center_node_mask_ood_te]
+
+        return dataset_ind, dataset_ood_tr, dataset_ood_te
 
 def create_sbm_dataset(data, p_ii=1.5, p_ij=0.5):
     n = data.num_nodes

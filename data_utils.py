@@ -399,8 +399,9 @@ def convert_to_adj(edge_index,n_node):
 def nc_for_ood(model, dataset_ind, dataset_ood_te, epoch, device, args):
     nc_angle = torch.zeros(1).to(device)
     class_num = max(dataset_ind.y.max().item() + 1, dataset_ind.y.shape[1])
+    ood_index = dataset_ood_te.node_idx
     id_feature = model.forward(dataset_ind, device)
-    ood_feature = model.forward(dataset_ood_te, device)
+    ood_feature = model.forward(dataset_ood_te, device)[ood_index]
 
     ood_feature_mean = torch.mean(ood_feature, dim=0)
     for i in range(class_num):
@@ -408,7 +409,7 @@ def nc_for_ood(model, dataset_ind, dataset_ood_te, epoch, device, args):
         id_class_mean = torch.mean(id_feature[mask], dim=0)
         nc_angle += torch.cosine_similarity(id_class_mean, ood_feature_mean, dim=-1)
 
-    return  nc_angle
+    return  nc_angle / class_num
 
 import subprocess
 def get_gpu_memory_map():
