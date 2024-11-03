@@ -1,7 +1,6 @@
 /data
 /results
+/encoder
 *.log
 *.txt
-bash/
-*.sh
 __pycache__
