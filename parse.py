@@ -17,7 +17,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--epochs', type=int, default=200)
 
     # backbone settings
-    parser.add_argument('--method', type=str, default='msp', choices=['msp', 'gnnsafe', 'ours'])
+    parser.add_argument('--method', type=str, default='msp', choices=['msp', 'gnnsafe', 'ours', 'ODIN', 'Mahalanobis', 'neco'])
     parser.add_argument('--backbone', type=str, default='gcn')
     parser.add_argument('--hidden_channels', type=int, default=64)
     parser.add_argument('--num_layers', type=int, default=2,
@@ -63,6 +63,7 @@ def parser_add_main_args(parser):
     parser.add_argument('--nc_dim', type=int, default=100, help='')
     parser.add_argument('--reduction', type=str, default='pca', choices=['pca', 'ec'])
     parser.add_argument('--scale', action='store_true', help='')
+    parser.add_argument('--process', type=str, choices=['train', 'detect'])
 
 
 

@@ -193,7 +193,7 @@ def load_heter_dataset(data_dir, dataname, ood_type):
         dataset_ood_tr.node_idx = idx[center_node_mask_ood_tr]
         dataset_ood_te.node_idx = idx[center_node_mask_ood_te]
 
-        return dataset_ind, dataset_ood_tr, dataset_ood_te
+    return dataset_ind, dataset_ood_tr, dataset_ood_te
 
 def create_sbm_dataset(data, p_ii=1.5, p_ij=0.5):
     n = data.num_nodes

@@ -3,7 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from backbone import *
 import numpy as np
+from numpy import linalg as LA
 
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from torch.autograd import Variable
 import torch.autograd as autograd
 
@@ -134,6 +137,8 @@ class ODIN(nn.Module):
         elif args.backbone == 'gat':
             self.encoder = GAT(d, args.hidden_channels, c, num_layers=args.num_layers,
                         dropout=args.dropout, use_bn=args.use_bn, heads=args.gat_heads, out_heads=args.out_heads)
+        elif args.backbone == 'mixhop':
+            self.encoder = MixHop(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
         else:
             raise NotImplementedError
 
@@ -153,7 +158,8 @@ class ODIN(nn.Module):
         # Calculating the perturbation we need to add, that is,
         # the sign of gradient of cross entropy loss w.r.t. input
         data = dataset.x.to(device)
-        data = Variable(data, requires_grad=True)
+        # data = Variable(data, requires_grad=True)
+        data = torch.tensor(data, dtype=torch.float, requires_grad=True).to(device)
         edge_index = dataset.edge_index.to(device)
         outputs = self.encoder(data, edge_index)[node_idx]
         criterion = nn.CrossEntropyLoss()
@@ -220,6 +226,8 @@ class Mahalanobis(nn.Module):
         elif args.backbone == 'gat':
             self.encoder = GAT(d, args.hidden_channels, c, num_layers=args.num_layers,
                         dropout=args.dropout, use_bn=args.use_bn, heads=args.gat_heads, out_heads=args.out_heads)
+        elif args.backbone == 'mixhop':
+            self.encoder = MixHop(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
         else:
             raise NotImplementedError
 
@@ -365,7 +373,7 @@ class Mahalanobis(nn.Module):
         for num_feature in feature_list:
             temp_list = torch.Tensor(num_classes, int(num_feature)).to(device)
             for j in range(num_classes):
-                temp_list[j] = torch.mean(list_features[out_count][j], 0)
+                temp_list[j] = torch.mean(torch.Tensor(list_features[out_count][j]), dim=0)
             sample_class_mean.append(temp_list)
             out_count += 1
 
@@ -397,4 +405,88 @@ class Mahalanobis(nn.Module):
         else:
             pred_in = F.log_softmax(logits_in, dim=1)
             loss = criterion(pred_in, dataset_ind.y[train_idx].squeeze(1).to(device))
+        return loss
+    
+class Neco(nn.Module):
+    def __init__(self, d, c, args):
+        super(Neco, self).__init__()
+        if args.backbone == 'gcn':
+            self.encoder = GCN(in_channels=d,
+                        hidden_channels=args.hidden_channels,
+                        out_channels=c,
+                        num_layers=args.num_layers,
+                        dropout=args.dropout,
+                        use_bn=args.use_bn)
+        elif args.backbone == 'mlp':
+            self.encoder = MLP(in_channels=d, hidden_channels=args.hidden_channels,
+                        out_channels=c, num_layers=args.num_layers,
+                        dropout=args.dropout)
+        elif args.backbone == 'gat':
+            self.encoder = GAT(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout, use_bn=args.use_bn)
+        elif args.backbone == 'mixhop':
+            self.encoder = MixHop(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
+        elif args.backbone == 'gcnjk':
+            self.encoder = GCNJK(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
+        elif args.backbone == 'gatjk':
+            self.encoder = GATJK(d, args.hidden_channels, c, num_layers=args.num_layers, dropout=args.dropout)
+        else:
+            raise NotImplementedError
+
+    def reset_parameters(self):
+        self.encoder.reset_parameters()
+
+    def forward(self, dataset, device, logit=True):
+        '''return predicted logits'''
+        x, edge_index = dataset.x.to(device), dataset.edge_index.to(device)
+        if(logit):
+            return self.encoder(x, edge_index)
+        else:
+            return self.encoder.intermediate_forward(x, edge_index)
+
+    def detect(self, dataset_train, tarin_idx, dataset_test, test_idx, device, args):
+        '''return ood score compute by feature'''
+        
+        logits_train = self.forward(dataset_train, device)[tarin_idx].cpu()
+        logits_test = self.forward(dataset_test, device)[test_idx].cpu()
+        feature_train = self.forward(dataset_train, device, False)[tarin_idx].cpu()
+        feature_test = self.forward(dataset_test, device, False)[test_idx].cpu()
+        
+        logits_train, logits_test = logits_train.detach().numpy(), logits_test.detach().numpy() 
+        feature_train, feature_test = feature_train.detach().numpy(), feature_test.detach().numpy()
+        ss = StandardScaler()
+        complete_vectors_train = ss.fit_transform(feature_train)
+        complete_vectors_test = ss.transform(feature_test)
+        pca_estimator = PCA(min(feature_train.shape[1], feature_train.shape[0]))
+        _ = pca_estimator.fit_transform(complete_vectors_train)
+        cls_test_reduced_all = pca_estimator.transform(complete_vectors_test)
+        maxlogit_test = logits_test.max(axis=-1)
+        cls_test_reduced = cls_test_reduced_all[:, :args.nc_dim]# nc dim xxxx
+        score = []
+        for i in range(cls_test_reduced.shape[0]):
+            sc_complet = LA.norm((complete_vectors_test[i, :]))
+            sc = LA.norm(cls_test_reduced[i, :])
+            sc_finale = sc/sc_complet
+            score.append(sc_finale)
+        score *= maxlogit_test
+        return torch.tensor(score)
+
+    def loss_compute(self, dataset_ind, dataset_ood, criterion, device, args):
+        '''return loss for training'''
+        edge_index_out, edge_index_in = dataset_ood.edge_index.to(device), dataset_ind.edge_index.to(device)
+
+        # get predicted logits from gnn classifier
+        logits_in = self.forward(dataset_ind, device)
+        logits_out = self.forward(dataset_ood, device)
+
+        train_in_idx, train_ood_idx = dataset_ind.splits['train'],  dataset_ood.node_idx
+
+        # compute supervised training loss
+        if args.dataset in ('proteins', 'ppi'):
+            sup_loss = criterion(logits_in[train_in_idx], dataset_ind.y[train_in_idx].to(device).to(torch.float))
+        else:
+            pred_in = F.log_softmax(logits_in[train_in_idx], dim=1)
+            sup_loss = criterion(pred_in, dataset_ind.y[train_in_idx].squeeze(1).to(device))
+
+        loss = sup_loss
+
         return loss

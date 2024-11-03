@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_sparse import SparseTensor, matmul
-from torch_geometric.nn import GCNConv, SGConv, GATConv, JumpingKnowledge, APPNP, MessagePassing
+from torch_geometric.nn import GCNConv, SGConv, GATConv, JumpingKnowledge, APPNP, MessagePassing, MixHopConv, SAGEConv
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 import scipy.sparse
 import numpy as np
@@ -212,6 +212,38 @@ class GAT(nn.Module):
         out_list.append(x)
         x = self.convs[-1](x, edge_index)
         return x, out_list
+
+class MixHopPyG(nn.Module):
+    ''' MixHop implement by PyG'''
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers=2, 
+                 drop_out=.5, use_bn=False, hops=[0, 1, 2]) -> None:
+        super(MixHopPyG).__init__()
+        self.power_num = len(hops)
+
+        self.Convs = nn.ModuleList()
+        self.Convs.append(MixHopConv(in_channels, hidden_channels, powers=hops))
+        
+        self.bns = nn.ModuleList()
+        self.bns.append(nn.BatchNorm1d(hidden_channels * self.power_num))
+
+        for _ in range(num_layers - 2):
+            self.Convs.append(MixHopConv(hidden_channels * self.power_num, hidden_channels, powers=hops))
+
+            self.bns.append(nn.BatchNorm1d(hidden_channels * self.power_num))
+            
+        self.Convs.append(MixHopConv(hidden_channels * self.power_num, out_channels, powers=hops))
+
+        self.drop_out = drop_out
+        self.activation = F.relu
+        self.use_bn = use_bn
+
+        self.reset_parameters()
+
+    def reset_parameters():
+        pass
+
+    def forward():
+        pass
 
 class MixHopLayer(nn.Module):
     """ Our MixHop layer """

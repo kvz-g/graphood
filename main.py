@@ -1,3 +1,4 @@
+import os
 import argparse
 import random
 import numpy as np
@@ -82,6 +83,8 @@ elif args.method == "ODIN":
     model = ODIN(d, c, args).to(device)
 elif args.method == "Mahalanobis":
     model = Mahalanobis(d, c, args).to(device)
+elif args.method == 'neco':
+    model = Neco(d, c, args).to(device)
 
 ### loss function ###
 if args.dataset in ('proteins', 'ppi'): # multi-label binary classification
@@ -101,50 +104,91 @@ if args.mode == 'classify':
 else:
     logger = Logger_detect(args.runs, args)
 
+if args.process == 'train':
+    model.train()
+    print('MODEL:', model)
 
-model.train()
-print('MODEL:', model)
+    ### Training loop ###
+    for run in range(args.runs):
+        model.reset_parameters()
+        model.to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        best_val = float('-inf')
 
-### Training loop ###
-for run in range(args.runs):
-    model.reset_parameters()
+        for epoch in range(args.epochs):
+            model.train()
+            optimizer.zero_grad()
+            loss = model.loss_compute(dataset_ind, dataset_ood_tr, criterion, device, args)
+            loss.backward()
+            optimizer.step()
+
+            if args.mode == 'classify':
+                result = evaluate_classify(model, dataset_ind, eval_func, criterion, args, device)
+                logger.add_result(run, result)
+
+                if epoch % args.display_step == 0:
+                    print(f'Epoch: {epoch:02d}, '
+                        f'Loss: {loss:.4f}, '
+                        f'Train: {100 * result[0]:.2f}%, '
+                        f'Valid: {100 * result[1]:.2f}%, '
+                        f'Test: {100 * result[2]:.2f}%')
+            else:
+                result, _, _ = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=True)
+                logger.add_result(run, result)
+
+                if epoch % args.display_step == 0:
+                    print(f'Epoch: {epoch:02d}, '
+                        f'Loss: {loss:.4f}, '
+                        f'AUROC: {100 * result[0]:.2f}%, '
+                        f'AUPR: {100 * result[1]:.2f}%, '
+                        f'FPR95: {100 * result[2]:.2f}%, '
+                        f'Test Score: {100 * result[-2]:.2f}%')
+                if epoch == 192:
+                    filename = f'encoder/{args.dataset}_{args.ood_type}_{args.backbone}.pth'
+                    torch.save(model.encoder.state_dict(), filename)
+                    
+        logger.print_statistics(run)
+
+    results = logger.print_statistics()
+
+
+elif args.process == 'detect':
+    ### Load the well-trained GNNs ###
+    model.encoder.load_state_dict(torch.load(f'encoder/{args.dataset}_{args.ood_type}_{args.backbone}.pth'))
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    best_val = float('-inf')
+    model.encoder.eval()
+    logit = model.forward(dataset_ind, device)
 
-    for epoch in range(args.epochs):
-        model.train()
-        optimizer.zero_grad()
-        loss = model.loss_compute(dataset_ind, dataset_ood_tr, criterion, device, args)
-        loss.backward()
-        optimizer.step()
+    result, ind_score, ood_score = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=True)
+    logger.add_result(0, result)
 
-        if args.mode == 'classify':
-            result = evaluate_classify(model, dataset_ind, eval_func, criterion, args, device)
-            logger.add_result(run, result)
-
-            if epoch % args.display_step == 0:
-                print(f'Epoch: {epoch:02d}, '
-                      f'Loss: {loss:.4f}, '
-                      f'Train: {100 * result[0]:.2f}%, '
-                      f'Valid: {100 * result[1]:.2f}%, '
-                      f'Test: {100 * result[2]:.2f}%')
+    print(f'AUROC: {100 * result[0]:.2f}%, '
+        f'AUPR: {100 * result[1]:.2f}%, '
+        f'FPR95: {100 * result[2]:.2f}%, '
+        f'Test Score: {100 * result[-2]:.2f}%')
+    logger.print_statistics(0)
+    results = logger.print_statistics()
+    
+""" if not os.path.exists(f'results/scores'):
+        os.makedirs(f'results/scores')
+    
+    if args.method == 'ours':
+        if args.use_prop:
+            name = 'ours_prop'
         else:
-            result = evaluate_detect(model, dataset_ind, dataset_ood_te, criterion, eval_func, args, device, return_score=False)
-            logger.add_result(run, result)
-
-            if epoch % args.display_step == 0:
-                print(f'Epoch: {epoch:02d}, '
-                      f'Loss: {loss:.4f}, '
-                      f'AUROC: {100 * result[0]:.2f}%, '
-                      f'AUPR: {100 * result[1]:.2f}%, '
-                      f'FPR95: {100 * result[2]:.2f}%, '
-                      f'Test Score: {100 * result[-2]:.2f}%')
-    logger.print_statistics(run)
-
-results = logger.print_statistics()
-
-
+            name = 'ours_wo_prop'
+    else:
+        name = args.method
+    filename = 'results/scores/' + name + '.csv'
+    print(f'Saving results to {filename}')
+    with open(f'{filename}', 'a+') as write_obj:
+        write_obj.write(f'{ind_score.shape[0]} {ood_score.shape[0]}\n')
+        for i in range(ind_score.shape[0]):
+            write_obj.write(f'{ind_score[i]}\n')
+        for i in range(ood_score.shape[0]):
+            write_obj.write(f'{ood_score[i]}\n') 
+ """
 ### Save results ###
 if args.mode == 'detect':
     save_result(results, args)
+

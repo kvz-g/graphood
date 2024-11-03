@@ -334,7 +334,7 @@ def evaluate_classify(model, dataset, eval_func, criterion, args, device):
 def evaluate_detect(model, dataset_ind, dataset_ood, criterion, eval_func, args, device, return_score=False):
     model.eval()
 
-    if isinstance(model, (Mahalanobis, Ours)):
+    if isinstance(model, (Mahalanobis, Ours, Neco)):
         test_ind_score = model.detect(dataset_ind, dataset_ind.splits['train'], dataset_ind, dataset_ind.splits['test'], device, args)
     elif isinstance(model, ODIN):
         test_ind_score = model.detect(dataset_ind, dataset_ind.splits['test'], device, args).cpu()
@@ -345,7 +345,7 @@ def evaluate_detect(model, dataset_ind, dataset_ood, criterion, eval_func, args,
     if isinstance(dataset_ood, list):
         result = []
         for d in dataset_ood:
-            if isinstance(model, (Mahalanobis, Ours)):
+            if isinstance(model, (Mahalanobis, Ours, Neco)):
                 test_ood_score = model.detect(dataset_ind, dataset_ind.splits['train'], d, d.node_idx, device, args).cpu()
             elif isinstance(model, ODIN):
                 test_ood_score = model.detect(d, d.node_idx, device, args).cpu()
@@ -355,7 +355,7 @@ def evaluate_detect(model, dataset_ind, dataset_ood, criterion, eval_func, args,
             auroc, aupr, fpr, _ = get_measures(test_ind_score, test_ood_score)
             result += [auroc] + [aupr] + [fpr]
     else:
-        if isinstance(model, (Mahalanobis, Ours)):
+        if isinstance(model, (Mahalanobis, Ours, Neco)):
             test_ood_score = model.detect(dataset_ind, dataset_ind.splits['train'], dataset_ood, dataset_ood.node_idx, device, args).cpu()
         elif isinstance(model, ODIN):
             test_ood_score = model.detect(dataset_ood, dataset_ood.node_idx, device, args).cpu()
